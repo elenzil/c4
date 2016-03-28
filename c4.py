@@ -15,6 +15,8 @@ TOKEN_EMPTY = "-"
 TOKEN_P1    = "X"
 TOKEN_P2    = "O"
 
+###############################################################################
+# board class
 
 class class_board:
 	def __init__(self, w, h):
@@ -45,17 +47,19 @@ class class_board:
 	def isLegalMove(self, col):
 		return (self.cells[col][self.rows - 1] == TOKEN_EMPTY)
 
+	def legalMoves(self):
+		legalCols = []
+
+		if self.winningToken() == TOKEN_EMPTY:
+			for c in range(self.cols):
+				if self.isLegalMove(c):
+					legalCols.append(c)
+
+		return legalCols
+
+
 	def hasLegalMove(self):
-		# maybe somebody already won:
-		if self.winningToken() != TOKEN_EMPTY:
-			return False
-
-		# nope, no winner.
-		for col in range(self.cols):
-			if self.isLegalMove(col):
-				return True
-
-		return False
+		return len(self.legalMoves()) > 0
 
 	def dropToken(self, col, token):
 		if not self.isLegalMove(col):
@@ -153,7 +157,11 @@ class class_board:
 			return self.cells[col][row]
 
 
-class class_player:
+###############################################################################
+# player classes
+
+
+class class_player_basic:
 
 	def __init__(self, token):
 		self.style = "first possible move"
@@ -168,68 +176,136 @@ class class_player:
 
 		print "error: No Legal Move, why are you asking me to move ?"
 
+	def otherPlayerToken(self):
+		if self.token == TOKEN_P1:
+			return TOKEN_P2
+		else:
+			return TOKEN_P1
 
-class class_player_random(class_player):
+
+class class_player_thinking(class_player_basic):
 	def __init__(self, token):
-		class_player.__init__(self, token)
+		class_player_basic.__init__(self, token)
+		self.style = "abstract base class for players who want to think about different moves"
+
+
+class class_player_random(class_player_thinking):
+	def __init__(self, token):
+		class_player_thinking.__init__(self, token)
 		self.style = "random move"
 
 	def makeMove(self, board):
 		# make a random legal move
 
-		legalCols = []
+		moves = board.legalMoves()
 
-		for c in range(board.cols):
-			if board.isLegalMove(c):
-				legalCols.append(c)
-
-		if len(legalCols) == 0:
+		if len(moves) == 0:
 			print "error: No Legal Move, why are you asking me to move ?"
 
-		chosenCol = random.choice(legalCols)
+		chosenCol = random.choice(moves)
 		board.dropToken(chosenCol, self.token)
 
+
+class class_player_winChooser(class_player_random):
+	def __init__(self, token):
+		class_player_random.__init__(self, token)
+		self.style = "choose moves that win right now, otherwise random"
+
+	def makeMove(self, board):
+
+		moves = board.legalMoves()
+
+		if len(moves) == 0:
+			print "error: No Legal Move, why are you asking me to move ?"
+
+		for col in moves:
+			newBoard = copy.deepcopy(board)
+			newBoard.dropToken(col, self.token)
+			if newBoard.winningToken == self.token:
+				board.dropToken(col, self.token)
+				return
+
+		class_player_random.makeMove(self, board)
+
+
+class class_player_winChooserLossAvoider(class_player_winChooser):
+	def __init__(self, token):
+		class_player_winChooser.__init__(self, token)
+		self.style = "choose moves that win right now, avoid moves that lose next turn, otherwise random"
+
+	def makeMove(self, board):
+
+		# see if we can just win
+
+		newBoard = copy.deepcopy(board)
+		class_player_winChooser.makeMove(self, newBoard)
+		if newBoard.winningToken == self.token:
+			board.dropToken(col, self.token)
+			return
+
+
+		# nope, ok. avoid losing for one round:
+		moves = board.legalMoves()
+		nonLosingMoves = []
+		for col in moves:
+			if not self.isLosingMove(board, col):
+				nonLosingMoves.append(col)
+
+		if len(nonLosingMoves) > 0:
+			board.dropToken(random.choice(nonLosingMoves), self.token)
+		else:
+			# all choices equally bad!
+			class_player_random.makeMove(self, board)
+
+	def isLosingMove(self, board, col):
+		boardMyMove = copy.deepcopy(board)
+		boardMyMove.dropToken(col, self.token)
+		if not boardMyMove.hasLegalMove():
+			# other player cannot move - we do not lose!
+			return False
+		else:
+			otherPlayerLegalMoves = boardMyMove.legalMoves()
+			for oplm in otherPlayerLegalMoves:
+				boardTheirMove = copy.deepcopy(boardMyMove)
+				boardTheirMove.dropToken(oplm, self.otherPlayerToken())
+				if boardTheirMove.winningToken() == self.otherPlayerToken():
+					# so sad - they win.
+					return True
+
+		return False
+
+
+###############################################################################
+# game management
 
 
 def runGame():
 	board = class_board(BOARD_COLS, BOARD_ROWS)
-	plyr1 = class_player       (TOKEN_P1)
-	plyr2 = class_player_random(TOKEN_P2)
 
-	gameOver = False
+	players = []
 
-	while not gameOver:
-		if board.hasLegalMove():
-			# print ""
-			# print "player 1 (%s) moves:" % (plyr1.token)
-			plyr1.makeMove(board)
-		else:
-			gameOver = True
+	players.append(class_player_winChooser           (TOKEN_P1))
+	players.append(class_player_winChooserLossAvoider(TOKEN_P2))
 
-		if board.hasLegalMove():
-			# print ""
-			# print "player 2 (%s) moves:" % (plyr2.token)
-			plyr2.makeMove(board)
-		else:
-			gameOver = True
-
-	print ""
-	print "Game Over!"
+	while board.hasLegalMove():
+		for plyr in players:
+			if board.hasLegalMove():
+				plyr.makeMove(board)
 
 	boardCopy = copy.deepcopy(board)
 	boardCopy.lowercaseBoard()
 
+	winningToken = board.winningToken()
 
-	winning_token = board.winningToken()
-
-	if winning_token == TOKEN_EMPTY:
+	if winningToken == TOKEN_EMPTY:
 		print "Nobody won."
 	else:
-		if winning_token == TOKEN_P1:
-			winner = plyr1
-		else:
-			winner = plyr2
-		print "Winner is %s - %s !" % (winner.token, winner.style)
+		winner = None
+		for plyr in players:
+			if winningToken == plyr.token:
+				winner = plyr
+
+		print "Winner is '%s' - %s !" % (winner.token, winner.style)
 		unused, col, row, dCol, dRow = board.winningRun()
 		boardCopy.uppercaseRun(col, row, dCol, dRow)
 
@@ -237,6 +313,7 @@ def runGame():
 	
 
 def main():
+	# optionally this could get input for number of rows/cols, number of iterations, etc.
 	runGame()
 
 
