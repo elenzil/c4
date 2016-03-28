@@ -82,7 +82,6 @@ class class_board:
 
 	def isRun(self, col, row, dCol, dRow):
 		token = self.cells[col][row]
-		# print "ssss--- %s %s, %s: %s" % (token, col, row, self.cells[col][row])
 
 		if token == TOKEN_EMPTY:
 			return False
@@ -90,8 +89,6 @@ class class_board:
 		for n in range(RUN_LENGTH - 1):
 			col += dCol
 			row += dRow
-
-			# print "sssssss %s %s, %s: %s" % (token, col, row, self.cells[col][row])
 
 			if not self.isCellInRange(col, row):
 				print "error: cell out of range: %s %s" % (col, row)
