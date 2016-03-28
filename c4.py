@@ -50,6 +50,8 @@ class class_board:
 	def legalMoves(self):
 		legalCols = []
 
+		# check if board currently has a winner.
+		# if there's a winner, there's no legal move.
 		if self.winningToken() == TOKEN_EMPTY:
 			for c in range(self.cols):
 				if self.isLegalMove(c):
