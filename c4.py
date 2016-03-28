@@ -223,7 +223,7 @@ class class_player_winChooser(class_player_random):
 		for col in moves:
 			newBoard = copy.deepcopy(board)
 			newBoard.dropToken(col, self.token)
-			if newBoard.winningToken == self.token:
+			if newBoard.winningToken() == self.token:
 				board.dropToken(col, self.token)
 				return
 
@@ -241,8 +241,9 @@ class class_player_winChooserLossAvoider(class_player_winChooser):
 
 		newBoard = copy.deepcopy(board)
 		class_player_winChooser.makeMove(self, newBoard)
-		if newBoard.winningToken == self.token:
-			board.dropToken(col, self.token)
+		if newBoard.winningToken() == self.token:
+			# make the same move on our board
+			class_player_winChooser.makeMove(self, board)
 			return
 
 
